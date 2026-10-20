@@ -1,33 +1,31 @@
 // ==============================================================================================
-// OpenRevo 插件 — AMD SMU / PawnIO service layer.
+// OpenRevo 插件 — AMD SMU / PawnIO 服务层
 //
 // 本文件属于 OpenRevo 插件（GPL-3.0-only，见仓库根 LICENSE）。
 //
-// 派生声明 / Derived-work notice:
-//   * 本文件的 SMU 命令表（CurveCommand / CurvePerCoreCommand / CurveReadCommand / ClockCommand /
-//     Stapm / Fast / Slow / Thm / CoGfx）与邮箱地址表（GetMp1Addrs / GetPsmuAddrs）是**派生作品**：
-//     它们与下列上游逐条同源（命令 ID / 通道 / 参数打包 / 调用顺序），
-//     OpenRevo 插件 只是把它们重写成按代号的 C# 表并补了守卫（逐条对照见 ATTRIBUTION-CO-ADDENDUM.md）：
-//         seerge/g-helper   app/Pawn/RyzenSmu.cs  https://github.com/seerge/g-helper           (GPL-3.0)
-//         irusanov/ZenStates-Core                 https://github.com/irusanov/ZenStates-Core    (GPL-3.0)
-//         FlyGoat/RyzenAdj  lib/api.c             https://github.com/FlyGoat/RyzenAdj           (LGPL-3.0)
-//     注：本仓库**保留了一份与 g-helper 上游逐字节相同**的参考副本
-//         diagnostics\smudbg-reference-20261005\key-files\ghelper_RyzenSmu.cs
-//         （22,317 B，SHA-256 07925B97DEF1A77D4A7F5D1D3B896032B0D10BF3DF635B0CCE6E603D5EEDDE35），
-//         它就是这张表的来源文件。
-//     ⚠️ 上述命令表**不是**"沿用 OpenRevo 插件 自己的 0.290.6 实现"：0.290.6 的那张表本身就是这张表的
-//        早期重排（逐条比对见 ATTRIBUTION-CO-ADDENDUM.md §3 末行），不能因为"我们自己以前也有"
-//        就当成原创。
-//     该部分按 GPL-3.0 分发（LGPL-3.0 与 GPL-3.0-only 相容）；许可文本见 LICENSE，
-//     第三方清单见 README.md 的 S6/S7/S8。
-//   * 本文件的 **FMax（PBO boost limit）** 一部分（命令行 0x42/0x47/0x6E/0x70/0x12/0x86、
-//     SMN 邮箱地址组、6 参数打包、事务时序）是在阅读下列 GPL-3.0 参考实现后重写的：
-//         irusanov/ZenStates-Core  https://github.com/irusanov/ZenStates-Core  (GPL-3.0)
-//         irusanov/SMUDebugTool    https://github.com/irusanov/SMUDebugTool    (GPL-3.0)
-//     该部分按 GPL-3.0 分发；完整许可文本见仓库根 LICENSE，
-//     第三方清单见 README.md。
-//   * 本文件**不含** namazso/PawnIO 的 C# 代码；命名空间 `PawnIO` 只是本项目的子系统名。
-//     随程序分发的 PawnIO.Modules `RyzenSMU.bin` 是 LGPL-2.1-or-later，见 LICENSES\LGPL-2.1.txt。
+// 派生声明（Derived-work notice）：
+//   本文件的 SMU 命令表与邮箱地址表（MP1 / PSMU 两套地址、命令 ID、参数打包、
+//   调用顺序与事务时序），主要参考自：
+//
+//     UXTU — Universal x86 Tuning Utility（JamesCJ60/Universal-x86-Tuning-Utility，GPL-3.0）
+//       https://github.com/JamesCJ60/Universal-x86-Tuning-Utility
+//       `Scripts/AMD Backend/RyzenSmu.cs`：
+//         - 各插槽（Socket_FT6_FP7_FP8 等）的 MP1 / PSMU 邮箱地址组；
+//         - 逻辑命令 → 命令 ID 的映射表（含 MP1 与 PSMU 双通道条目）；
+//         - 同一逻辑命令对两个邮箱都下发一次的做法；
+//         - RyzenAdj 风格参数的顺序与含义（stapm / fast / slow / time 等）。
+//       本插件按上述语义重写为按代号的 C# 表，并补充了能力守卫与回读校验。
+//
+//   另参考（用于交叉印证与少数代号的补充）：
+//     irusanov/ZenStates-Core（GPL-3.0）  https://github.com/irusanov/ZenStates-Core
+//     irusanov/SMUDebugTool（GPL-3.0）    https://github.com/irusanov/SMUDebugTool
+//     FlyGoat/RyzenAdj（LGPL-3.0）        https://github.com/FlyGoat/RyzenAdj
+//
+//   本项目不含上述项目的源码副本，仅按命令语义重写；整体按 GPL-3.0 发布，
+//   完整许可文本见仓库根 LICENSE。
+//
+//   PawnIO 模块 `RyzenSMU.bin` / `IntelMSR.bin` 来自 namazso/PawnIO.Modules（LGPL-2.1-or-later），
+//   随包原样分发；命名空间 `PawnIO` 仅为本项目子系统名，不含其 C# 代码。
 // ==============================================================================================
 using System;
 using System.Diagnostics;
@@ -214,7 +212,6 @@ public sealed class RyzenSmuService : IDisposable
 	// 2026-10-10 co-attribution: **本文件按代号的 SMU 命令表是派生作品**（不是自创的命令 ID）。
 	//
 	// 逐组来源、许可、"像到什么程度"（完整逐条对照 / 上游 URL / blob 校验见
-	// ATTRIBUTION-CO-ADDENDUM.md；清单见 README.md S6/S7/S8；许可文本见 LICENSES\）：
 	//
 	//  ① seerge/g-helper — `app/Pawn/RyzenSmu.cs`  (GPL-3.0)
 	//     https://github.com/seerge/g-helper/blob/b2b7bae52cd39095002078af98349e6f6d57b960/app/Pawn/RyzenSmu.cs
@@ -237,8 +234,6 @@ public sealed class RyzenSmuService : IDisposable
 	//                        g-helper 是 default 16。
 	//         - 邮箱事务     MailboxRaw / SendMp1 / SendPsmu / GetMp1Addrs / GetPsmuAddrs 的算法**与全部
 	//                        12 组 SMN 地址常量** == g-helper :434-589。
-	//     * 本仓库保留的参考副本 `diagnostics\smudbg-reference-20261005\key-files\ghelper_RyzenSmu.cs`
-	//       与上述上游**逐字节相同**（22,317 B，SHA-256 07925B97DEF1A77D4A7F5D1D3B896032B0D10BF3DF635B0CCE6E603D5EEDDE35）。
 	//
 	//  ② irusanov/ZenStates-Core  (GPL-3.0)  https://github.com/irusanov/ZenStates-Core
 	//     * 每核 CO 写（CurvePerCoreCommand + EncodePerCoreCurveArg + SetCoPerCore）：
@@ -301,7 +296,6 @@ public sealed class RyzenSmuService : IDisposable
 	//  ⑤ 结论：g-helper（GPL-3.0）、ZenStates-Core（GPL-3.0）、RyzenAdj（LGPL-3.0）、UXTU（GPL-3.0）
 	//     与本项目 GPL-3.0-only **全部相容**；许可文本见 LICENSE（LGPL-2.1 模块另有
 	//     LICENSES\LGPL-2.1.txt）；第三方清单见 README.md；逐条对照与上游 URL 见
-	//     ATTRIBUTION-CO-ADDENDUM.md。
 	// ==========================================================================================
 	// 2026-10-05 step7A (upstream 0.290.6 A-33): per-codename command tables replace the old
 	// CpuFamily switch. A codename missing from the table returns null, i.e. "refuse to write"
@@ -471,7 +465,6 @@ public sealed class RyzenSmuService : IDisposable
 	//       （InitPBO()，SettingsForm.cs:482-488），素材里**没有任何实测佐证**。
 	//     * 结论：注释原文就是 `// Not sure` = 不确定。按本仓库"绝不猜 ID 盲试"的规矩，
 	//       Vermeer / Chagall / Milan / Matisse / CastlePeak 一律**不写进表**（等实测）。
-	//       候选值与可信度、以及复现实验的只读步骤见 修改日志 的"待确认"清单。
 	//     * 顺带（写表差异，本轮**不动**）：我们的 Vermeer 写命令 PSMU 0x0B 正是同一块
 	//       Zen2 RSMU 表里的 SetAllDldoPsmMargin = 0xB（同样 `// Not sure`），而上游 Zen3
 	//       自己的写命令是 MP1 0x36（Zen3Settings.cs:23），且上游优先用 MP1
@@ -1050,7 +1043,6 @@ public sealed class RyzenSmuService : IDisposable
 	// 依据（**全部取自本仓库已有的表**，没有新造语义；推理链：k_addridx 定"哪一组邮箱地址"，
 	// RyzenSMU.p 的 PM 表 case 分组定"哪一套命令"，两者交叉即得家族标签）：
 	//
-	//   ① diagnostics\smudbg-reference-20261005\key-files\RyzenSMU.p:194-245 —— k_addrinfo[] +
 	//      k_addridx[]：每个代号 -> **同一组 SMN 邮箱地址**（即本文件的 RSMU/PSMU 组）：
 	//        组0 = 0x3B10524 / 0x3B10570 / 0x3B10A40 = GetPsmuAddrs(Matisse | Raphael)
 	//        组1 = 0x3B1051C / 0x3B10568 / 0x3B10590 = GetPsmuAddrs(Zen1Desktop)
@@ -1062,7 +1054,6 @@ public sealed class RyzenSmuService : IDisposable
 	//        Genoa/StormPeak/Bergamo/Turin/TurinD 与 Raphael/DragonRange/GraniteRidge/ShimadaPeak 同一条；
 	//        Milan/Chagall 与 Matisse/Vermeer/CastlePeak/Rome 同一条；
 	//        Mero 与 Renoir/Cezanne/VanGogh/Phoenix/... 同一条（APU 条）。
-	//   ③ 本仓库 修改日志.txt:6676-6686（上一轮的读表审计，对照上游 ZenStates-Core）：上游把
 	//      Genoa/StormPeak/Bergamo/Turin/TurinD 归到 **Zen4Settings/Zen5Settings**（= Raphael/GraniteRidge
 	//      那一档，Rsmu 0xD5 由 Zen5Settings 继承），把 **Mero 与 VanGogh 放进同一个
 	//      APUSettings1_VanGogh** —— 而 VanGogh 在本文件就是 CpuFamily.Mobile。
@@ -1093,7 +1084,6 @@ public sealed class RyzenSmuService : IDisposable
 	// 2026-10-10 fmax-family-guard（用户决定 ②）：**Rome / Naples 一并补上**，同一份依据 ——
 	//    * Rome（Zen2 EPYC，CPUID 17h/31，pkg_type != 7）：k_addridx = 组0（桌面组）；RyzenSMU.p 的三条
 	//      PM 表 case 都把它与 Matisse/Vermeer/CastlePeak/Chagall/Milan 排在同一条（:442-443, :468-469,
-	//      :496-499），修改日志.txt:6684 记的上游也是 `Zen2Settings_Rome` -> CpuFamily.Matisse（Zen2 桌面档）。
 	//    * Naples（Zen1 EPYC，CPUID 17h/01，pkg_type == 3）：k_addridx = 组1，正等于
 	//      GetPsmuAddrs(Zen1Desktop)（0x3B1051C/0x3B10568/0x3B10590）；RyzenSMU.p 每条 PM 表 case 都把它
 	//      与 SummitRidge/PinnacleRidge/Colfax/Threadripper 排在一起 -> CpuFamily.Zen1Desktop。
@@ -1134,12 +1124,10 @@ public sealed class RyzenSmuService : IDisposable
 		// 2026-10-10 fmax-family: Milan（Zen3 EPYC，CPUID 19h/00-01）/ Chagall（Zen3 Threadripper PRO，
 		// 19h/08）与 Vermeer 同为 Zen3 桌面档：RyzenSMU.p 的 PM 表 case（:442-443, :468-469, :496-499）
 		// 把 Milan/Chagall 与 Matisse/Vermeer/CastlePeak/Rome 排在同一条，k_addridx 也是组0；
-		// 修改日志.txt:6682 也把 "Vermeer/Chagall/Milan" 当作同一档读命令候选。
 		case CpuCodeName.Milan:
 		case CpuCodeName.Chagall:
 		// 2026-10-10 fmax-family-guard: Rome（Zen2 EPYC，17h/31）与 Matisse/Vermeer 同为 Zen2 桌面档：
 		// k_addridx 组0，RyzenSMU.p 的三条 PM 表 case 都与本档同列，上游是 `Zen2Settings_Rome`
-		// （修改日志.txt:6684）-> 与 Matisse 同档。
 		case CpuCodeName.Rome:
 			return CpuFamily.Matisse;
 		case CpuCodeName.Rembrandt:
@@ -1150,7 +1138,6 @@ public sealed class RyzenSmuService : IDisposable
 		case CpuCodeName.HawkPoint:
 		// 2026-10-10 fmax-family: Mero（CPUID 17h/98）与 VanGogh（17h/90-91）在 RyzenSMU.p 同一条
 		// APU case、k_addridx 同为组2，且上游把 Mero 与 VanGogh 放进**同一个 APUSettings1_VanGogh**
-		// （修改日志.txt:6686）-> 与 VanGogh 同档（Mobile），不新造族。
 		case CpuCodeName.Mero:
 			return CpuFamily.Mobile;
 		case CpuCodeName.Raphael:
@@ -1159,7 +1146,6 @@ public sealed class RyzenSmuService : IDisposable
 		// 2026-10-10 fmax-family: Genoa/StormPeak（Zen4 EPYC/Threadripper，19h/11、19h/18）与
 		// Bergamo/Turin/TurinD（Zen4c/Zen5 服务器，19h/A0、1Ah/02、1Ah/11）都落 k_addridx 组0
 		// （= 本档同一组 PSMU 地址），且在 RyzenSMU.p 的 PM 表 case 与 Raphael/DragonRange/GraniteRidge
-		// 同一条；上游把 Genoa 档归入 Zen4Settings/Zen5Settings（修改日志.txt:6678-6680）。
 		// 它们此前是 Unknown -> 服务不初始化 -> FMax 能力表里的 ReadWrite 永远到不了邮箱。
 		case CpuCodeName.Genoa:
 		case CpuCodeName.StormPeak:

@@ -1,7 +1,6 @@
 // ==============================================================================================
 // OpenRevo 插件 — CPU 代号/能力判据。本文件是 OpenRevo 插件 自己的判据代码；
 // 它读的 RyzenSmuService.CurveCommand / CurvePerCoreCommand / SetCoGfx 命令表是派生作品
-// （来源与许可见 RyzenSmuService.cs 头部与 ATTRIBUTION-CO-ADDENDUM.md）。
 // ==============================================================================================
 using System;
 using System.Runtime.InteropServices;
@@ -510,7 +509,6 @@ public static class CpuInfo
 	}
 
 	// 白名单与 RyzenSmuService.SetCoGfx 的 switch (Family) 保持一致；
-	// 那两行取值的来源见 RyzenSmuService.cs 的派生声明（CurveCommand 上方）与 ATTRIBUTION-CO-ADDENDUM.md。
 	private static bool HasIgpuCurveMailbox(CpuCodeName cpu)
 	{
 		// 2026-10-10 fmax-family-guard: 这是又一条"按 Family 出结论"的通路（结论 = 这颗代号有没有

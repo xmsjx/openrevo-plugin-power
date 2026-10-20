@@ -51,8 +51,15 @@ agent/src/                   SMU/PawnIO 源码（复用 LM 已实现层）
 
 ## 许可
 
-[GPL-3.0](LICENSE)。复用的 SMU/PawnIO 层与命令语义来自 GPL-3.0 参考实现
-（irusanov/ZenStates-Core、seerge/g-helper 等），因此本插件整体按 GPL-3.0 发布。
+[GPL-3.0](LICENSE)。
+
+本插件的 SMU 命令表与邮箱地址表，主要参考自 **UXTU（Universal x86 Tuning Utility，
+JamesCJ60/Universal-x86-Tuning-Utility，GPL-3.0）** 的 `RyzenSmu.cs`：各插槽的 MP1/PSMU
+邮箱地址组、逻辑命令到命令 ID 的映射、以及"同一逻辑命令向两个邮箱各下发一次"的做法。
+
+交叉印证另参考 irusanov/ZenStates-Core（GPL-3.0）、irusanov/SMUDebugTool（GPL-3.0）、
+FlyGoat/RyzenAdj（LGPL-3.0）。本项目不含上述项目的源码副本，仅按命令语义重写，
+因此整体按 GPL-3.0 发布。
 ## 附：读取 Intel PL1 / PL2 / PL4
 
 插件根目录带一个**只读**独立脚本 `Get-IntelPl.ps1`，用于在 Intel 平台上读取 CPU 的
