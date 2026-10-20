@@ -1,0 +1,78 @@
+﻿========================================================
+ 自定义功耗插件—— OpenRevo 插件
+ 版本 0.1.0 · 适用于 OpenRevo v0.9.x · GPL-3.0
+========================================================
+
+【这是什么】
+  给 OpenRevo 增加一个「自定义功耗插件」标签页：
+    - AMD Curve Optimizer：全核 / 每核负压（margin，负值=降压）
+    - FMax：PBO 最大频率
+    - 温度墙：目标结温
+  只写你改过的项，写完自动回读；不做持久化、不自动应用。
+
+  本插件为非官方社区项目，与任何硬件厂商无隶属或授权关系。
+
+【前置条件】
+  1. 已安装 PawnIO 驱动（LM 安装目录自带；没有时会提示"PawnIO 服务"相关错误）
+  2. 以管理员运行本地代理（网页无法自行提权）
+
+【安装】
+  1. 把整个 openrevo-plugin-ux 文件夹复制到：
+        %APPDATA%\OpenRevo\plugins\
+  2. 打开 OpenRevo →【插件】页 → 右上角【刷新】
+  3. 顶部胶囊栏出现「自定义功耗插件」标签页
+
+【首次使用（每次开机后一次）】
+  1. 进入 openrevo-plugin-ux 文件夹，双击「Start-Agent.bat」（或双击中文名 启动代理.bat，等价）
+  2. UAC 窗口点【是】
+  3. 回到插件页点【刷新状态】；连接状态变绿、CPU 信息出现即可用
+
+  代理监听 127.0.0.1:18946，只接受本机请求。
+
+【怎么用】
+  1. 先在【Curve Optimizer】填全核 margin（例如 -20），或每核：
+        0=-20,1=-20,2=-15
+  2. 【FMax】可填目标 MHz（例如 4300）；【温度墙】可填 95
+  3. 点【应用改动】；结果里会显示每项的状态码与回读值
+  4. 不想改的项留空即可（只写填了值的项）
+
+【状态码说明】
+  OK            写入被接受
+  CmdRejectedPrereq / CmdRejectedBusy / UnknownCmd / Failed
+                固件拒绝或不支持（详见插件页日志）
+  NotSupported  本机代号没有可用命令（一项都不会写）
+
+【安全说明】
+  * 只写你填写的项；没填的项不会被碰
+  * 写入后尽量回读校验；CO 没有公开回读命令时只报状态码，不假装成功
+  * 不做持久化、不注册开机任务、不自动应用（避免异常关机后自动套用错误电压）
+  * 负压过大会导致不稳定/蓝屏：建议从 -10 起，逐步试
+  * 想恢复默认：把全核与每核都设为 0 后应用，或重启（BIOS 默认值生效）
+
+【文件说明】
+  manifest.json        插件清单（plugin_type: tab）
+  index.html           标签页界面（单文件）
+  启动代理.bat          以管理员启动本地代理
+  agent\bin\ux-agent.exe  本地代理（127.0.0.1:18946，HTTP/JSON）
+  agent\src\*.cs       SMU/PawnIO 源码（GPL-3.0，见 LICENSE）
+  使用说明.txt          本文件
+
+【许可】
+  GPL-3.0（复用的 SMU/PawnIO 层与命令语义来自 GPL-3.0 参考实现，见 LICENSE）
+
+【卸载】
+  关闭 OpenRevo → 删除 %APPDATA%\OpenRevo\plugins\openrevo-plugin-ux
+  （若代理仍在运行，可在任务管理器结束 ux-agent.exe）
+【附：读取 Intel 的 PL1 / PL2 / PL4（独立脚本）】
+  插件根目录带一个只读脚本：Get-IntelPl.ps1
+  - 用途：在 Intel 平台上读取 CPU 封装的 PL1 / PL2 / PL4（MSR 0x610）
+  - 依赖：PawnIO 驱动（已装）+ 管理员 PowerShell；IntelMSR.bin 已随插件携带
+  - 用法：
+      1) 右键「Windows PowerShell」→ 以管理员身份运行
+      2) 执行：
+         cd "$env:APPDATA\OpenRevo\plugins\openrevo-plugin-ux"
+         powershell -NoProfile -ExecutionPolicy Bypass -File .\Get-IntelPl.ps1
+  - 输出：PL1/PL2/PL4 的瓦数、使能位、PL4 时间窗
+  - 只读：不会写任何 MSR
+  - 若提示找不到 IntelMSR 模块：确认 IntelMSR.bin 与本脚本在同一目录
+  - 若提示 ioctl_read_msr 失败：该模块不允许读 0x610，把输出发给开发者

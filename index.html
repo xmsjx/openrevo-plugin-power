@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>自定义功耗插件</title>
+<style>
+  :root{
+    --bg: var(--surface, #1b1b1f);
+    --card: var(--surface-2, #202027);
+    --line: var(--border, #2f2f36);
+    --txt: var(--text, #e8e8ec);
+    --muted: var(--muted, #9a9aa6);
+    --accent: var(--accent, #2f81f7);
+    --ok: var(--success, #3fb950);
+    --warn: var(--warning, #d29922);
+    --err: var(--danger, #f85149);
+    --radius: var(--radius, 12px);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:transparent; color:var(--txt);
+    font:400 13px/1.45 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif; }
+  .wrap{ padding:18px 20px 28px; max-width:1100px; }
+  h1{ font-size:18px; margin:0 0 4px; display:flex; align-items:center; gap:10px; }
+  h1 .tag{ font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:2px 9px; }
+  .sub{ color:var(--muted); font-size:12px; margin-bottom:16px; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:12px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:13px 15px; }
+  .card .k{ color:var(--muted); font-size:11px; margin-bottom:6px; }
+  .card .v{ font-size:15px; font-weight:600; word-break:break-all; }
+  .card .v.small{ font-size:12px; font-weight:400; }
+  .sec{ margin-top:22px; }
+  .sec h2{ font-size:14px; margin:0 0 10px; }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  label.f{ display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); }
+  input[type=number], input[type=text]{ font:inherit; color:var(--txt); background:#15151a;
+    border:1px solid var(--line); border-radius:9px; padding:8px 10px; width:130px; }
+  input[type=text].wide{ width:320px; }
+  .col{ display:flex; flex-direction:column; gap:10px; }
+  .f.line{ flex-direction:row; align-items:center; gap:12px; }
+  .f.line > span.lbl{ min-width:200px; }
+  .chk{ width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
+  .slider-wrap{ display:flex; align-items:center; gap:8px; }
+  .slider-wrap input[type=range]{ width:120px; accent-color:var(--accent); }
+  .slider-wrap input[type=number]{ width:96px; }
+  button{ font:inherit; color:var(--txt); background:transparent; cursor:pointer;
+          border:1px solid var(--line); border-radius:10px; padding:9px 16px; }
+  button:hover{ border-color:var(--accent); color:var(--accent); }
+  button:disabled{ opacity:.45; cursor:not-allowed; }
+  button.primary{ background:rgba(47,129,247,.16); border-color:rgba(47,129,247,.5); color:var(--accent); }
+  .state{ display:inline-flex; align-items:center; gap:7px; font-size:12px; padding:3px 10px;
+          border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .state.ok{ color:var(--ok); border-color:rgba(63,185,80,.4); } .state.ok .dot{ background:var(--ok); }
+  .state.warn{ color:var(--warn); border-color:rgba(210,153,34,.4); } .state.warn .dot{ background:var(--warn); }
+  .state.err{ color:var(--err); border-color:rgba(248,81,73,.4); } .state.err .dot{ background:var(--err); }
+  .hint{ color:var(--muted); font-size:12px; line-height:1.7; }
+  pre{ margin:10px 0 0; padding:12px 14px; background:#121216; border:1px solid var(--line); border-radius:10px;
+       color:#cdd3dd; font:12px/1.55 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; word-break:break-all; }
+  .log{ margin-top:14px; color:var(--muted); font-size:12px; white-space:pre-wrap; }
+  .modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); align-items:center; justify-content:center; padding:20px; z-index:9; }
+  .modal.show{ display:flex; }
+  .modal .box{ max-width:640px; max-height:80vh; overflow:auto; background:var(--bg); border:1px solid var(--line);
+               border-radius:14px; padding:18px 20px; }
+  .modal h3{ margin:0 0 10px; font-size:15px; }
+  .modal p{ margin:0 0 12px; color:var(--muted); font-size:12px; white-space:pre-wrap; }
+  .modal .r{ display:flex; justify-content:flex-end; gap:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>自定义功耗插件 <span class="tag">OpenRevo 插件页</span>
+    <span id="conn" class="state"><span class="dot"></span><span id="connText">连接中…</span></span>
+  </h1>
+  <div class="sub">AMD Curve Optimizer（全核 / 每核）、FMax、温度墙。只写你改过的项，写完回读。</div>
+
+  <div class="grid">
+    <div class="card"><div class="k">CPU</div><div class="v small" id="cpu">—</div></div>
+    <div class="card"><div class="k">代号 / 家族</div><div class="v small" id="code">—</div></div>
+    <div class="card"><div class="k">SMU 版本</div><div class="v small" id="smu">—</div></div>
+    <div class="card"><div class="k">FMax 当前值</div><div class="v small" id="fmax">—</div></div>
+  </div>
+
+  <div class="sec" id="intelSec" style="display:none">
+    <h2>Intel 调优（MSR OC 邮箱）</h2>
+    <div class="row">
+      <label class="f">Core 电压偏移（mV，负值降压）<input id="intelCoreMv" type="number" min="-150" max="0" step="1" placeholder="—"></label>
+      <label class="f">Cache 电压偏移（mV）<input id="intelCacheMv" type="number" min="-150" max="0" step="1" placeholder="—"></label>
+      <label class="f">倍频（非混合架构）<input id="intelRatio" type="number" min="8" max="60" step="1" placeholder="—"></label>
+    </div>
+    <div class="hint" id="intelNow">当前值：—</div>
+  </div>
+  <div class="sec amdOnly">
+    <h2>Curve Optimizer（负压）</h2>
+    <div class="row">
+      <label class="f">全核 margin（负值=降压）<input id="coAll" type="number" min="-50" max="0" step="1" value="" placeholder="-20"></label>
+      <label class="f">每核（格式：0=-20,1=-20,…）<input id="coPerCore" type="text" class="wide" placeholder="0=-20,1=-20,2=-15"></label>
+    </div>
+  </div>
+
+  <div class="sec amdOnly">
+    <h2>FMax（PBO 上限 / MHz）</h2>
+    <div class="row">
+      <label class="f">目标频率<input id="fmaxIn" type="number" min="1000" max="6000" step="50" placeholder="4300"></label>
+      <span class="hint">只支持写入的平台才能生效；写入后会自动回读对比。</span>
+    </div>
+  </div>
+
+  <div class="sec amdOnly">
+    <h2>功耗墙</h2>
+    <div class="col">
+      <div class="f line"><input type="checkbox" class="chk" id="cStapm"><span class="lbl">STAPM 功率限制（W）</span><input id="stapmW" type="number" min="5" max="120" step="1" placeholder="—"></div>
+      <div class="f line"><input type="checkbox" class="chk" id="cSlowPow"><span class="lbl">慢速功率限制（W）</span><input id="slowW" type="number" min="5" max="160" step="1" placeholder="—"></div>
+      <div class="f line"><input type="checkbox" class="chk" id="cSlowTime"><span class="lbl">慢速提升持续时间（秒）</span><input id="slowTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
+      <div class="f line"><input type="checkbox" class="chk" id="cFastPow"><span class="lbl">快速功率限制（W）</span><input id="fastW" type="number" min="5" max="160" step="1" placeholder="—"></div>
+      <div class="f line"><input type="checkbox" class="chk" id="cFastTime"><span class="lbl">快速提升持续时间（秒）</span><input id="stapmTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
+      <span class="hint" id="powerNow">当前值：—</span>
+    </div>
+  </div>
+
+  <div class="sec amdOnly">
+    <h2>温度墙（℃）</h2>
+    <div class="row">
+      <label class="f">Thm<input id="thm" type="number" min="60" max="105" step="1" placeholder="95"></label>
+      <label class="f">Tctl<input id="tctl" type="number" min="60" max="105" step="1" placeholder="—"></label>
+      <span class="hint">Thm 为温度墙命令；Tctl 为目标结温（部分代号只支持其一）。</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="apply" class="primary" disabled>应用改动</button>
+    <button id="reload">刷新状态</button>
+  </div>
+
+  <div class="sec">
+    <h2>诊断</h2>
+    <div class="hint">
+      代理未启动或未提权时，上面的控件不可用。请双击插件目录里的「启动代理.bat」，在 UAC 窗口点【是】。
+    </div>
+    <pre id="cmd"></pre>
+    <div class="row"><button id="copy">复制启动命令</button><button id="openDir">打开插件目录</button></div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="modal" id="modal"><div class="box">
+  <h3 id="mTitle">提示</h3><p id="mBody"></p>
+  <div class="r"><button id="mClose">关闭</button></div>
+</div></div>
+
+<script>
+(function () {
+  "use strict";
+  var AGENT = "http://127.0.0.1:18946";
+  var $ = function (id) { return document.getElementById(id); };
+  var lines = [];
+  function log(s) { lines.push(s); if (lines.length > 14) lines.shift(); $("log").textContent = lines.join("\n"); }
+  function conn(ok, text) { $("conn").className = "state " + (ok ? "ok" : "err"); $("connText").textContent = text; }
+  function show(t, b) { $("mTitle").textContent = t; $("mBody").textContent = b; $("modal").classList.add("show"); }
+  $("mClose").onclick = function () { $("modal").classList.remove("show"); };
+
+  $("cmd").textContent = 'cd "%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux"\n启动代理.bat';
+
+  function api(path, opt) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 60000);
+    return fetch(AGENT + path, Object.assign({ signal: ctl.signal }, opt || {}))
+      .then(function (r) { return r.text().then(function (x) { clearTimeout(t); try { return JSON.parse(x); } catch (e) { return { ok: r.ok, raw: x }; } }); })
+      .catch(function (e) { clearTimeout(t); throw e; });
+  }
+
+  function render(p) {
+    var isIntel = (p && p.vendor === "intel");
+    document.getElementById("intelSec").style.display = isIntel ? "" : "none";
+    var amd = document.querySelectorAll(".amdOnly");
+    for (var ai = 0; ai < amd.length; ai++) amd[ai].style.display = isIntel ? "none" : "";
+    if (isIntel) {
+      if (!p.ok) { $("intelNow").textContent = "当前值：" + (p.reason || "读取失败"); }
+      else {
+        var c = p.core || {}, ca = p.cache || {};
+        $("intelNow").textContent = "当前值：Core " + c.offsetMv + " mV / Cache " + ca.offsetMv +
+          " mV · 倍频 " + c.ratio + "/" + c.maxRatio +
+          (c.voltageSupported ? "" : " · 电压偏移不支持") +
+          (c.ratioSupported ? "" : " · 倍频不支持");
+        if ($("intelCoreMv").value === "") $("intelCoreMv").placeholder = c.offsetMv;
+        if ($("intelCacheMv").value === "") $("intelCacheMv").placeholder = ca.offsetMv;
+        if ($("intelRatio").value === "") $("intelRatio").placeholder = c.ratio;
+      }
+      $("cpu").textContent = p.cpu || "Intel";
+      $("code").textContent = "intel";
+      $("smu").textContent = "MSR OC 邮箱";
+      $("fmax").textContent = "—";
+      $("apply").disabled = false;
+      return;
+    }
+    $("cpu").textContent = p.cpu || "—";
+    $("code").textContent = p.initialized ? ((p.codeName || "?") + " / " + (p.family || "?")) : "未初始化";
+    $("smu").textContent = p.smuVersion || "—";
+    var cur = p.current || {};
+    $("fmax").textContent = cur.fmaxMhz ? (cur.fmaxMhz + " MHz") : (cur.fmaxNote || "不可读");
+    var pw = cur.power;
+    if (pw) {
+      $("powerNow").textContent = "当前值：PL1 " + num1(pw.stapmW) + "W / PL2 " + num1(pw.fastW) +
+        "W · Slow " + num1(pw.slowW) + "W · 结温 " + num1(pw.tctlCelsius) + "℃" +
+        (pw.slowTimeSec != null ? (" · Slow 窗 " + pw.slowTimeSec + "s") : "") +
+        (pw.stapmTimeSec != null ? (" · STAPM 窗 " + pw.stapmTimeSec + "s") : "");
+      if ($("stapmW").value === "") $("stapmW").placeholder = num1(pw.stapmW);
+      // 首次加载：把有当前值的项默认勾上，方便直接改
+      if (!window.__chkInit) {
+        window.__chkInit = true;
+        if (pw.slowW)  { $("cSlowPow").checked = true;  }
+        if (pw.fastW)  { $("cFastPow").checked = true;  }
+      }
+      if ($("fastW").value === "") $("fastW").placeholder = num1(pw.fastW);
+      if ($("slowW").value === "") $("slowW").placeholder = num1(pw.slowW);
+      if ($("stapmTimeSec").value === "" && pw.stapmTimeSec != null) $("stapmTimeSec").placeholder = pw.stapmTimeSec;
+      if ($("slowTimeSec").value === "" && pw.slowTimeSec != null) $("slowTimeSec").placeholder = pw.slowTimeSec;
+      if ($("tctl").value === "") $("tctl").placeholder = num1(pw.tctlCelsius);
+    } else {
+      $("powerNow").textContent = "当前值：" + (cur.powerNote || "不可读");
+    }
+    $("apply").disabled = !p.initialized;
+    if (!p.initialized) log("原因: " + (p.initReason || "未初始化"));
+  }
+
+  function load() {
+    return api("/ping").then(function () {
+      conn(true, "代理已连接");
+      return api("/probe");
+    }).then(function (p) {
+      log("probe: " + JSON.stringify({ cpu: p.cpu, code: p.codeName, fam: p.family, init: p.initialized }));
+      render(p);
+    }).catch(function (e) {
+      conn(false, "代理未运行");
+      log("连接失败: " + (e && e.message || e));
+      show("本地代理未运行",
+        "请先双击插件目录里的「启动代理.bat」，在 UAC 窗口点【是】，然后点【刷新状态】。\n\n" +
+        "插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
+      throw e;
+    });
+  }
+
+  // 浮点数取整显示（PM 表是 float，会出现 100.00001）
+  function num1(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    var r = Math.round(v * 10) / 10;
+    return (Math.abs(r - Math.round(r)) < 1e-9) ? String(Math.round(r)) : String(r);
+  }
+
+  // PL1 / PL2 联动：PL2 不得低于 PL1（AMD 语义里 PL2 是短时爆发，必须 >= PL1）
+  var _stapm = document.getElementById("stapmW");
+  var _fast = document.getElementById("fastW");
+  function syncPl2Floor() {
+    var a = parseInt(_stapm.value, 10), b = parseInt(_fast.value, 10);
+    if (!isNaN(a) && !isNaN(b) && b < a) {
+      _fast.value = a;
+      var rng = document.querySelector('input[type=range][data-for="fastW"]');
+      if (rng) rng.value = a;
+    }
+  }
+  function syncPl1Ceiling() {
+    var a = parseInt(_stapm.value, 10), b = parseInt(_fast.value, 10);
+    if (!isNaN(a) && !isNaN(b) && a > b) {
+      _stapm.value = b;
+      var rng = document.querySelector('input[type=range][data-for="stapmW"]');
+      if (rng) rng.value = b;
+    }
+  }
+  if (_stapm && _fast) {
+    _stapm.addEventListener("change", syncPl1Ceiling);
+    _fast.addEventListener("change", syncPl2Floor);
+  }
+  function parsePerCore(s) {
+    var out = {}, parts = (s || "").split(",");
+    for (var i = 0; i < parts.length; i++) {
+      var kv = parts[i].trim(); if (!kv) continue;
+      var m = kv.split("="); if (m.length !== 2) return null;
+      var core = parseInt(m[0].trim(), 10), val = parseInt(m[1].trim(), 10);
+      if (isNaN(core) || isNaN(val)) return null;
+      out[String(core)] = val;
+    }
+    return out;
+  }
+
+  $("apply").onclick = function () {
+    var body = {}, any = false;
+    var intelFields = [["intelCoreMv","intelCoreMv"],["intelCacheMv","intelCacheMv"],["intelRatio","intelRatio"]];
+    for (var ii = 0; ii < intelFields.length; ii++) {
+      var iv = $(intelFields[ii][0]).value.trim();
+      if (iv !== "") { body[intelFields[ii][1]] = parseInt(iv, 10); any = true; }
+    }
+    var coAll = $("coAll").value.trim();
+    if (coAll !== "") { body.coAll = parseInt(coAll, 10); any = true; }
+    var per = $("coPerCore").value.trim();
+    if (per !== "") {
+      var map = parsePerCore(per);
+      if (!map) { show("格式错误", "每核格式应为：0=-20,1=-20,2=-15"); return; }
+      body.coPerCore = map; any = true;
+    }
+    var fm = $("fmaxIn").value.trim();
+    if (fm !== "") { body.fmaxMhz = parseInt(fm, 10); any = true; }
+    var th = $("thm").value.trim();
+    if (th !== "") { body.thmCelsius = parseInt(th, 10); any = true; }
+    var tc = $("tctl").value.trim();
+    if (tc !== "") { body.tctlCelsius = parseInt(tc, 10); any = true; }
+    // 与参考实现一致：只提交"勾选"的项（勾选框 = 是否下发）
+    var pairs = [["cStapm","stapmW","stapmW"],["cSlowPow","slowW","slowW"],
+                 ["cSlowTime","slowTimeSec","slowTimeSec"],["cFastPow","fastW","fastW"],
+                 ["cFastTime","stapmTimeSec","stapmTimeSec"]];
+    for (var i = 0; i < pairs.length; i++) {
+      var cb = $(pairs[i][0]), inp = $(pairs[i][1]);
+      if (!cb || !cb.checked) continue;
+      var v = inp.value.trim();
+      if (v === "") { show("缺少数值", "已勾选「" + pairs[i][0] + "」但没填数值。"); return; }
+      body[pairs[i][2]] = parseInt(v, 10); any = true;
+    }
+    if (!any) { show("没有要应用的改动", "请先填写至少一项。"); return; }
+
+    $("apply").disabled = true; log("apply: " + JSON.stringify(body));
+    api("/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) {
+        log("结果: " + JSON.stringify(r));
+        var text = (r.applied || []).map(function (x) {
+          return x.item + " → " + x.status + (x.readback !== undefined && x.readback !== null ? ("（回读 " + x.readback + (x.match === false ? "，不一致" : "") + "）") : "") + (x.note ? ("  " + x.note) : "");
+        }).join("\n");
+        if (r.after) {
+          text += "\n\n写后 PM 表回读：PL1 " + num1(r.after.stapmW) + "W / PL2 " + num1(r.after.fastW) + "W · Slow " + num1(r.after.slowW) + "W · 结温 " + num1(r.after.tctlCelsius) + "℃";
+        } else if (r.afterNote) {
+          text += "\n\n" + r.afterNote;
+        }
+        if (r.trace) { text += "\n\n写后采样(2s)：\n" + r.trace; }
+        show(r.ok ? "已应用" : "部分未成功", text || JSON.stringify(r));
+      })
+      .catch(function (e) { show("调用失败", String(e && e.message || e)); })
+      .then(function () { return load().catch(function () { }); });
+  };
+
+  $("reload").onclick = function () { load().catch(function () { }); };
+  $("copy").onclick = function () {
+    var txt = $("cmd").textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ show("已复制", txt); }, function(){ show("请手动复制", txt); });
+    else show("请手动复制", txt);
+  };
+  $("openDir").onclick = function () {
+    var b = (window.parent && window.parent.__TAURI_INTERNALS__) || window.__TAURI_INTERNALS__ || null;
+    if (b && typeof b.invoke === "function") b.invoke("open_plugins_dir", {}).catch(function (e) { show("无法打开", String(e && e.message || e)); });
+    else show("提示", "请手动打开：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
+  };
+
+  // ---- 所有 number 输入自动配一个滑块（range <-> number 双向同步） ----
+  (function attachSliders() {
+    var nums = document.querySelectorAll("input[type=number]");
+    for (var i = 0; i < nums.length; i++) {
+      (function (num) {
+        if (num.dataset.noSlider === "1") return;
+        var wrap = document.createElement("span");
+        wrap.className = "slider-wrap";
+        var rng = document.createElement("input");
+        rng.type = "range";
+        rng.min = num.min !== "" ? num.min : "0";
+        rng.max = num.max !== "" ? num.max : "100";
+        rng.step = num.step !== "" ? num.step : "1";
+        rng.value = num.value !== "" ? num.value : rng.min;
+        rng.dataset.for = num.id;
+        num.parentNode.insertBefore(wrap, num);
+        wrap.appendChild(rng);
+        wrap.appendChild(num);
+
+        num.addEventListener("input", function () {
+          if (num.value !== "") rng.value = num.value;
+        });
+        rng.addEventListener("input", function () {
+          num.value = rng.value;
+          num.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      })(nums[i]);
+    }
+  })();
+
+  load().catch(function () { });
+})();
+</script>
+</body>
+</html>

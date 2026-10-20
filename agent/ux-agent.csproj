@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ux-agent</AssemblyName>
+    <RootNamespace>OpenRevoUx</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src\*.cs" />
+    <EmbeddedResource Include="RyzenSMU.bin" LogicalName="OpenRevoUx.RyzenSMU.bin" />
+    <EmbeddedResource Include="IntelMSR.bin" LogicalName="OpenRevoUx.IntelMSR.bin" />
+  </ItemGroup>
+</Project>

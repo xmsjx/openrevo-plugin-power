@@ -1,0 +1,13 @@
+# 构建产物（源码发布：不提交 exe / dll / obj / bin 输出）
+obj/
+bin/
+*.pdb
+*.user
+*.log
+*.bak
+*.zip
+.last-push-log.txt
+
+# 本地/私用
+.DS_Store
+Thumbs.db
