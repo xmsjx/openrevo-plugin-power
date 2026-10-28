@@ -138,7 +138,7 @@
       代理未启动或未提权时，上面的控件不可用。请双击插件目录里的「启动代理.bat」，在 UAC 窗口点【是】。
     </div>
     <pre id="cmd"></pre>
-    <div class="row"><button id="copy">复制启动命令</button><button id="openDir">打开插件目录</button></div>
+    <div class="row"><button id="hostStart">启动服务（宿主代拉）</button><button id="hostStop">停止服务</button><button id="copy">复制启动命令</button><button id="openDir">打开插件目录</button></div>
   </div>
 
   <div class="log" id="log"></div>
@@ -223,6 +223,43 @@
     if (!p.initialized) log("原因: " + (p.initReason || "未初始化"));
   }
 
+  // ---- 宿主伴随服务桥（OpenRevo 0.9.x+ 的 Sidecar Supervisor）----
+  // manifest 里已声明 service；宿主顶栏会自动出现「服务」胶囊与启动/停止按钮。
+  // 这里再补一层：页面打开时如果代理没起，主动请求宿主拉起（旧版本无响应，自动回落手动方案）。
+  function hostPost(action, payload) {
+    try {
+      window.parent.postMessage(payload ? { action: action, payload: payload } : { action: action }, "*");
+      return true;
+    } catch (e) { return false; }
+  }
+
+  var hostServiceSeen = false;
+  var hostStartAttempted = false;
+
+  window.addEventListener("message", function (e) {
+    var d = e && e.data;
+    if (!d || d.type !== "OPENREVO_PLUGIN_SERVICE_STATUS") return;
+    hostServiceSeen = true;
+    // 0.9.x 宿主用 { type, payload }；老协议用 { type, status }
+    var st = d.payload || d.status || {};
+    var s = st.status || "unknown";
+    log("宿主服务状态: " + s + (st.message ? " · " + st.message : "") + (st.code ? " [" + st.code + "]" : ""));
+    if (s === "running") load().catch(function () { });
+    if (s === "error" && st.message) show("宿主启动服务失败", st.message + (st.detail ? "\n\n" + st.detail : ""));
+  });
+
+  // 等待宿主把服务拉起来（最多 ~12 秒），期间不弹错误
+  function waitForAgent(maxTries) {
+    var tries = 0;
+    return new Promise(function (resolve) {
+      (function tick() {
+        if (tries++ >= maxTries) { resolve(false); return; }
+        api("/ping").then(function () { resolve(true); })
+          .catch(function () { setTimeout(tick, 900); });
+      })();
+    });
+  }
+
   function load() {
     return api("/ping").then(function () {
       conn(true, "代理已连接");
@@ -233,8 +270,26 @@
     }).catch(function (e) {
       conn(false, "代理未运行");
       log("连接失败: " + (e && e.message || e));
+
+      // 第一次失败：请求宿主拉起伴随服务（0.9.x+ 生效）
+      if (!hostStartAttempted) {
+        hostStartAttempted = true;
+        hostPost("GET_PLUGIN_SERVICE_STATUS");
+        hostPost("START_PLUGIN_SERVICE");
+        log("已请求宿主启动伴随服务，等待代理就绪…");
+        conn(false, "等待宿主启动服务…");
+        return waitForAgent(14).then(function (ok) {
+          if (ok) return load().catch(function () { });
+          show("本地代理未运行",
+            "两种启动方式：\n\n" +
+            "① OpenRevo v0.9.x+：点标签页右上角的「服务」胶囊（▷ 启动服务），宿主会以管理员权限自动拉起代理；\n" +
+            "② 旧版本（如 0.8.x）：双击插件目录里的「启动代理.bat」，UAC 点【是】。\n\n" +
+            "插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
+        });
+      }
+
       show("本地代理未运行",
-        "请先双击插件目录里的「启动代理.bat」，在 UAC 窗口点【是】，然后点【刷新状态】。\n\n" +
+        "点标签页右上角的「服务」胶囊启动服务；旧版本请双击插件目录里的「启动代理.bat」。\n\n" +
         "插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
       throw e;
     });
@@ -336,13 +391,30 @@
   };
 
   $("reload").onclick = function () { load().catch(function () { }); };
+  $("hostStart").onclick = function () {
+    log("请求宿主启动伴随服务…");
+    hostPost("START_PLUGIN_SERVICE");
+    conn(false, "等待宿主启动服务…");
+    waitForAgent(14).then(function (ok) {
+      if (ok) load().catch(function () { });
+      else show("宿主未启动服务",
+        "当前 OpenRevo 版本可能不支持伴随服务（需 v0.9.x+）。\n\n" +
+        "请改用手动方式：双击插件目录里的「启动代理.bat」，UAC 点【是】。");
+    });
+  };
+  $("hostStop").onclick = function () {
+    hostPost("STOP_PLUGIN_SERVICE");
+    log("请求宿主停止伴随服务…");
+    setTimeout(function () { conn(false, "代理已停止"); }, 800);
+  };
   $("copy").onclick = function () {
     var txt = $("cmd").textContent;
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ show("已复制", txt); }, function(){ show("请手动复制", txt); });
     else show("请手动复制", txt);
   };
   $("openDir").onclick = function () {
-    var b = (window.parent && window.parent.__TAURI_INTERNALS__) || window.__TAURI_INTERNALS__ || null;
+    var b = null;
+    try { b = (window.parent && window.parent.__TAURI_INTERNALS__) || window.__TAURI_INTERNALS__ || null; } catch (e) { b = null; }
     if (b && typeof b.invoke === "function") b.invoke("open_plugins_dir", {}).catch(function (e) { show("无法打开", String(e && e.message || e)); });
     else show("提示", "请手动打开：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
   };
