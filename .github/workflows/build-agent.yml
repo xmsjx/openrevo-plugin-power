@@ -1,0 +1,58 @@
+name: build-agent
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish agent (self-contained single file)
+        shell: pwsh
+        run: |
+          dotnet publish agent/ux-agent.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none -p:DebugSymbols=false -o out
+          Get-ChildItem out | Format-Table Name, Length
+
+      - name: Assemble portable plugin zip
+        shell: pwsh
+        run: |
+          $stage = 'stage'
+          New-Item -ItemType Directory -Force -Path "$stage/agent/bin" | Out-Null
+          Get-ChildItem -File | Where-Object {
+            $_.Name -match '\.(html|json|md|txt|ps1|bin|bat)$' -or $_.Name -eq 'LICENSE'
+          } | ForEach-Object { Copy-Item $_.FullName (Join-Path $stage $_.Name) -Force }
+          Copy-Item 'out/ux-agent.exe' "$stage/agent/bin/ux-agent.exe" -Force
+          $ver = (Get-Content manifest.json -Raw | ConvertFrom-Json).version
+          Compress-Archive -Path "$stage/*" -DestinationPath "openrevo-plugin-power-v$ver.zip" -CompressionLevel Optimal
+          Get-ChildItem *.zip | Format-Table Name, Length
+
+      - name: Upload agent artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-agent
+          path: out/ux-agent.exe
+
+      - name: Attach assets to release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/ux-agent.exe
+            openrevo-plugin-power-v*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

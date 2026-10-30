@@ -22,6 +22,17 @@
   宿主处于「自定义」模式时自动锁定 PL 项，避免与 OpenRevo 本体互相覆盖
 - **安全**：只写改动过的项；写后回读；不做持久化、不自动应用
 
+## 下载预编译代理（推荐，不需要 .NET）
+
+到 [Releases](https://github.com/xmsjx/openrevo-plugin-power/releases) 下载：
+
+- **`openrevo-plugin-power-vX.Y.Z.zip`** —— 整包，解压到 `%APPDATA%\OpenRevo\plugins\openrevo-plugin-ux\` 即可
+- **`ux-agent.exe`** —— 只替换代理时用（放进 `agent\bin\`）
+
+> 这两个附件由 GitHub Actions 自动构建（`.github/workflows/build-agent.yml`）：
+> push 到 `main` 构建并上传 artifact；打 `v*` 标签时自动挂到对应 Release。
+> 终端用户不需要安装 .NET；只有想自己从源码构建的人才需要 .NET 10 SDK。
+
 ## 安装
 
 1. 确认宿主是 **OpenRevo 0.9.4+**（0.9.3 及更早没有 `window.OpenRevo` 桥，插件会提示不兼容）
