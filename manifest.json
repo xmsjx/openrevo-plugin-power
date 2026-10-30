@@ -1,11 +1,13 @@
 {
   "id": "openrevo-plugin-power",
   "name": "自定义功耗插件",
-  "version": "0.2.0",
+  "version": "0.5.3",
   "author": "OpenRevo Community",
   "description": "OpenRevo 标签页：CPU 功耗墙（STAPM/慢速/快速 + 时间窗）、温度墙、AMD Curve Optimizer（全核/每核负压）、FMax；Intel 平台的 core/cache 偏移与倍频。只写勾选项、写后回读；需要 PawnIO 驱动与管理员代理。GPL-3.0。",
+  "order": 66,
   "plugin_type": "tab",
   "entry": "index.html",
+  "min_host_version": "0.9.4",
   "service": {
     "executable": "agent/bin/ux-agent.exe",
     "args": ["--port", "18946"],

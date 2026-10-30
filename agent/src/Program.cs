@@ -206,6 +206,46 @@ internal static class Program
                 catch (Exception ex) { powerNote = "PM 表异常: " + ex.Message; }
             }
 
+            // CO 每核回读（纯读：每核一条命令，只在 probe 时读一次，不轮询）
+            int[]? coPerCore = null;
+            string? coReadbackNote = null;
+            int cores = 1;
+            try { cores = Math.Max(1, CpuInfo.PhysicalCoreCount); }
+            catch { cores = Math.Max(1, Environment.ProcessorCount); }
+
+            if (initialized && _smu != null)
+            {
+                if (RyzenSmuService.SupportsPerCoreReadback(_smu.CpuCodeName))
+                {
+                    try
+                    {
+                        var arr = new int[cores];
+                        bool allOk = true;
+                        for (int i = 0; i < cores; i++)
+                        {
+                            var st = _smu.ReadCurveMargin(i, out var resp);
+                            if (st != SmuStatus.OK || resp == null || resp.Length == 0)
+                            {
+                                allOk = false;
+                                coReadbackNote = $"Core {i} 读取失败: {st}";
+                                break;
+                            }
+                            var mv = RyzenSmuService.DecodeCurveMargin(resp[0]);
+                            if (!mv.HasValue)
+                            {
+                                allOk = false;
+                                coReadbackNote = $"Core {i} 解码失败";
+                                break;
+                            }
+                            arr[i] = mv.Value;
+                        }
+                        if (allOk) coPerCore = arr;
+                    }
+                    catch (Exception ex) { coReadbackNote = "CO 回读异常: " + ex.Message; }
+                }
+                else coReadbackNote = "该代号没有 CO 回读命令";
+            }
+
             return new
             {
                 ok = true,
@@ -222,9 +262,10 @@ internal static class Program
                     fmaxNote,
                     power,
                     powerNote,
-                    coReadback = (string?)null,
-                    note = "CO 当前值无公开回读命令（写入后以状态码为准）"
+                    coPerCore,
+                    coReadbackNote
                 },
+                cores,
                 range = new
                 {
                     coAll = new[] { -50, 0 },

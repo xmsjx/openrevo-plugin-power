@@ -18,7 +18,7 @@
     --radius: var(--radius, 12px);
   }
   *{ box-sizing:border-box; }
-  html,body{ margin:0; padding:0; background:transparent; color:var(--txt);
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--txt); color-scheme:dark;
     font:400 13px/1.45 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif; }
   .wrap{ padding:18px 20px 28px; max-width:1100px; }
   h1{ font-size:18px; margin:0 0 4px; display:flex; align-items:center; gap:10px; }
@@ -41,8 +41,17 @@
   .f.line > span.lbl{ min-width:200px; }
   .chk{ width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
   .slider-wrap{ display:flex; align-items:center; gap:8px; }
-  .slider-wrap input[type=range]{ width:120px; accent-color:var(--accent); }
-  .slider-wrap input[type=number]{ width:96px; }
+  .slider-wrap input[type=range]{ width:240px; accent-color:var(--accent); }
+  .slider-wrap input[type=number]{ width:110px; }
+  /* 每核负压：按 CCD 排布（8 核一排；12/16 核按每 CCD 6/8 个分两排） */
+  .co-grid{ display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px;
+            margin-top:8px; max-width:640px; }
+  .co-cell{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .co-cell > span{ font-size:10.5px; color:var(--muted); }
+  .co-cell > input{ width:100%; padding:6px 8px; font-size:12px; }
+  .co-cell.dirty > input{ border-color:var(--accent); color:var(--accent); }
+  .co-cell.bulk > input{ color:var(--muted); }
+  .co-cell > input:disabled{ opacity:.55; }
   button{ font:inherit; color:var(--txt); background:transparent; cursor:pointer;
           border:1px solid var(--line); border-radius:10px; padding:9px 16px; }
   button:hover{ border-color:var(--accent); color:var(--accent); }
@@ -93,27 +102,30 @@
   <div class="sec amdOnly">
     <h2>Curve Optimizer（负压）</h2>
     <div class="row">
-      <label class="f">全核 margin（负值=降压）<input id="coAll" type="number" min="-50" max="0" step="1" value="" placeholder="-20"></label>
-      <label class="f">每核（格式：0=-20,1=-20,…）<input id="coPerCore" type="text" class="wide" placeholder="0=-20,1=-20,2=-15"></label>
+      <label class="f">全核 margin（负值=降压，正值=加压）<input id="coAll" type="number" min="-50" max="25" step="1" value="" placeholder="0"></label>
     </div>
+    <label class="f" style="margin-top:12px">每核负压（按核心数逐核输入；灰字为回读基线，改过的核心才写入）</label>
+    <div id="coPerCoreGrid" class="co-grid"></div>
+    <div class="hint" id="coReadNote">—</div>
   </div>
 
   <div class="sec amdOnly">
     <h2>FMax（PBO 上限 / MHz）</h2>
     <div class="row">
-      <label class="f">目标频率<input id="fmaxIn" type="number" min="1000" max="6000" step="50" placeholder="4300"></label>
-      <span class="hint">只支持写入的平台才能生效；写入后会自动回读对比。</span>
+      <label class="f">目标频率<input id="fmaxIn" type="number" min="1000" max="6000" step="50" placeholder="—"></label>
+      <span class="hint" id="fmaxNote">框内为回读的当前上限；改动后点应用才会写入。</span>
     </div>
   </div>
 
   <div class="sec amdOnly">
     <h2>功耗墙</h2>
+    <div class="hint" id="hostMode">宿主模式：—</div>
     <div class="col">
-      <div class="f line"><input type="checkbox" class="chk" id="cStapm"><span class="lbl">STAPM 功率限制（W）</span><input id="stapmW" type="number" min="5" max="120" step="1" placeholder="—"></div>
-      <div class="f line"><input type="checkbox" class="chk" id="cSlowPow"><span class="lbl">慢速功率限制（W）</span><input id="slowW" type="number" min="5" max="160" step="1" placeholder="—"></div>
-      <div class="f line"><input type="checkbox" class="chk" id="cSlowTime"><span class="lbl">慢速提升持续时间（秒）</span><input id="slowTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
-      <div class="f line"><input type="checkbox" class="chk" id="cFastPow"><span class="lbl">快速功率限制（W）</span><input id="fastW" type="number" min="5" max="160" step="1" placeholder="—"></div>
-      <div class="f line"><input type="checkbox" class="chk" id="cFastTime"><span class="lbl">快速提升持续时间（秒）</span><input id="stapmTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
+      <div class="f line"><span class="lbl">STAPM 功率限制（W）</span><input id="stapmW" type="number" min="5" max="120" step="1" placeholder="—"></div>
+      <div class="f line"><span class="lbl">慢速功率限制（W）</span><input id="slowW" type="number" min="5" max="160" step="1" placeholder="—"></div>
+      <div class="f line"><span class="lbl">慢速提升持续时间（秒）</span><input id="slowTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
+      <div class="f line"><span class="lbl">快速功率限制（W）</span><input id="fastW" type="number" min="5" max="160" step="1" placeholder="—"></div>
+      <div class="f line"><span class="lbl">快速提升持续时间（秒）</span><input id="stapmTimeSec" type="number" min="1" max="512" step="1" placeholder="—"></div>
       <span class="hint" id="powerNow">当前值：—</span>
     </div>
   </div>
@@ -135,7 +147,7 @@
   <div class="sec">
     <h2>诊断</h2>
     <div class="hint">
-      代理未启动或未提权时，上面的控件不可用。请双击插件目录里的「启动代理.bat」，在 UAC 窗口点【是】。
+      代理由宿主「服务」胶囊管理（OpenRevo 0.9.4+ 自动以管理员权限拉起）。若显示未连接，点右上角【启动】。
     </div>
     <pre id="cmd"></pre>
     <div class="row"><button id="hostStart">启动服务（宿主代拉）</button><button id="hostStop">停止服务</button><button id="copy">复制启动命令</button><button id="openDir">打开插件目录</button></div>
@@ -160,13 +172,131 @@
   function show(t, b) { $("mTitle").textContent = t; $("mBody").textContent = b; $("modal").classList.add("show"); }
   $("mClose").onclick = function () { $("modal").classList.remove("show"); };
 
-  $("cmd").textContent = 'cd "%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux"\n启动代理.bat';
+  $("cmd").textContent = '插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\n代理：agent/bin/ux-agent.exe（端口 18946，由宿主服务监督器管理）';
 
   function api(path, opt) {
     var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 60000);
     return fetch(AGENT + path, Object.assign({ signal: ctl.signal }, opt || {}))
       .then(function (r) { return r.text().then(function (x) { clearTimeout(t); try { return JSON.parse(x); } catch (e) { return { ok: r.ok, raw: x }; } }); })
       .catch(function (e) { clearTimeout(t); throw e; });
+  }
+
+  // ---- 每核负压网格：按核心数生成输入框，默认填入回读基线 ----
+  var coBaseline = {};        // core -> 回读值（CO 步数）
+  var coCoreCount = 0;
+
+  function guessCoreCount() {
+    var hc = navigator.hardwareConcurrency || 8;
+    return Math.max(1, Math.round(hc / 2));   // 带 SMT：逻辑线程 / 2 = 物理核
+  }
+
+  function buildCoGrid(cores) {
+    var grid = $("coPerCoreGrid");
+    if (!grid) return;
+    if (cores === coCoreCount && grid.childElementCount === cores) return;
+    coCoreCount = cores;
+    // 按 CCD 排布：一个 CCD 内的核号连续（0..n-1 属 CCD0，n..2n-1 属 CCD1）
+    // 8 核 → 一排 8 个；12 核 → 6+6；16 核 → 8+8
+    var perCcd = (cores <= 8) ? cores : Math.ceil(cores / 2);
+    var cols = perCcd;
+    grid.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0, 1fr))";
+    grid.style.maxWidth = (cols * 86) + "px";
+    grid.innerHTML = "";
+    for (var i = 0; i < cores; i++) {
+      var cell = document.createElement("label");
+      cell.className = "co-cell";
+      cell.dataset.core = String(i);
+      var t = document.createElement("span");
+      t.textContent = (cores > 8 ? ("CCD" + Math.floor(i / perCcd) + " ") : "") + "C" + i;
+      var inp = document.createElement("input");
+      inp.type = "number"; inp.min = "-50"; inp.max = "25"; inp.step = "1";
+      inp.className = "co-input";
+      inp.dataset.core = String(i);
+      inp.dataset.noSlider = "1";   // 每核输入框不要配滑块
+      inp.placeholder = "—";
+      cell.appendChild(t); cell.appendChild(inp);
+      grid.appendChild(cell);
+    }
+  }
+
+  function markCoDirty(el) {
+    var cell = el.parentNode;
+    if (!cell) return;
+    var base = coBaseline[el.dataset.core];
+    var v = el.value.trim();
+    var dirty = (v !== "" && (base === undefined || String(base) !== v));
+    cell.className = "co-cell" + (dirty ? " dirty" : "") + (el.dataset.fromAll === "1" ? " bulk" : "");
+  }
+
+  // 全核滑块 / 输入框 → 每核输入框联动（只做预览填充，应用时由 coAll 一次写入）
+  function applyCoAllToGrid(val) {
+    var grid = $("coPerCoreGrid");
+    if (!grid) return;
+    var inputs = grid.querySelectorAll(".co-input");
+    var n = 0;
+    for (var i = 0; i < inputs.length; i++) {
+      var inp = inputs[i];
+      var v = (val === "" || val === null || val === undefined) ? "" : String(val);
+      inp.value = v;
+      if (v === "") delete inp.dataset.fromAll; else inp.dataset.fromAll = "1";
+      markCoDirty(inp);
+      n++;
+    }
+    if (n > 0) {
+      log(val === "" ? "已清空 " + n + " 个每核输入框"
+                     : ("全核 " + val + " 已同步到 " + n + " 个核心（应用时只下发 coAll，不重复写每核）"));
+    }
+  }
+
+  function fillCoGrid(readback) {
+    var grid = $("coPerCoreGrid");
+    if (!grid) return;
+    var cells = grid.querySelectorAll(".co-cell");
+    for (var i = 0; i < cells.length; i++) {
+      var core = cells[i].dataset.core;
+      var inp = cells[i].querySelector("input");
+      if (!inp) continue;
+      var prev = coBaseline[core];
+      var base = readback ? readback[parseInt(core, 10)] : undefined;
+      if (base === undefined || base === null) {
+        inp.placeholder = "—";
+      } else {
+        var cv = inp.value.trim();
+        if (inp.dataset.fromAll === "1" || cv === "" || (prev !== undefined && cv === String(prev))) {
+          inp.value = String(base);
+          delete inp.dataset.fromAll;
+        }
+        coBaseline[core] = base;
+        inp.placeholder = String(base);
+      }
+      if (!inp.__wired) {
+        inp.__wired = true;
+        inp.addEventListener("input", function () {
+          delete this.dataset.fromAll;   // 用户手改过这一核 → 不再算「跟随全核」
+          markCoDirty(this);
+        });
+      }
+      markCoDirty(inp);
+    }
+  }
+
+  // ---- 功耗墙 / FMax：把回读值填进输入框，作为「有没有改动」的基线 ----
+  var fmaxBaseline;
+  var plBaseline = {};
+  var coAllBaseline;
+
+  function syncSlider(el) {
+    // 直接改 el.value 不会带动滑块，派发 input 事件让 attachSliders 的监听器同步
+    try { el.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) { }
+  }
+
+  function fillPlBaseline(id, v) {
+    if (v === null || v === undefined) return;
+    var el = $(id); if (!el) return;
+    var s = String(num1(v));
+    el.placeholder = s;
+    if (el.value.trim() === "") { el.value = s; syncSlider(el); }
+    plBaseline[id] = s;
   }
 
   function render(p) {
@@ -198,55 +328,135 @@
     $("smu").textContent = p.smuVersion || "—";
     var cur = p.current || {};
     $("fmax").textContent = cur.fmaxMhz ? (cur.fmaxMhz + " MHz") : (cur.fmaxNote || "不可读");
+    // FMax：框内默认显示回读的当前上限，作为改动判定基线
+    if (cur.fmaxMhz) {
+      var fstr = String(cur.fmaxMhz);
+      $("fmaxIn").placeholder = fstr;
+      if ($("fmaxIn").value.trim() === "") { $("fmaxIn").value = fstr; syncSlider($("fmaxIn")); }
+      fmaxBaseline = fstr;
+      $("fmaxNote").textContent = "框内为回读的当前上限（" + fstr + " MHz）；改动后点应用才会写入。";
+    } else if (cur.fmaxNote) {
+      $("fmaxNote").textContent = "FMax 不可读：" + cur.fmaxNote;
+    }
     var pw = cur.power;
     if (pw) {
-      $("powerNow").textContent = "当前值：PL1 " + num1(pw.stapmW) + "W / PL2 " + num1(pw.fastW) +
-        "W · Slow " + num1(pw.slowW) + "W · 结温 " + num1(pw.tctlCelsius) + "℃" +
-        (pw.slowTimeSec != null ? (" · Slow 窗 " + pw.slowTimeSec + "s") : "") +
+      $("powerNow").textContent = "当前值：STAPM " + num1(pw.stapmW) + "W / 快速功率 " + num1(pw.fastW) +
+        "W / 慢速功率 " + num1(pw.slowW) + "W · 结温 " + num1(pw.tctlCelsius) + "℃" +
+        (pw.slowTimeSec != null ? (" · 慢速窗 " + pw.slowTimeSec + "s") : "") +
         (pw.stapmTimeSec != null ? (" · STAPM 窗 " + pw.stapmTimeSec + "s") : "");
-      if ($("stapmW").value === "") $("stapmW").placeholder = num1(pw.stapmW);
-      // 首次加载：把有当前值的项默认勾上，方便直接改
-      if (!window.__chkInit) {
-        window.__chkInit = true;
-        if (pw.slowW)  { $("cSlowPow").checked = true;  }
-        if (pw.fastW)  { $("cFastPow").checked = true;  }
-      }
-      if ($("fastW").value === "") $("fastW").placeholder = num1(pw.fastW);
-      if ($("slowW").value === "") $("slowW").placeholder = num1(pw.slowW);
-      if ($("stapmTimeSec").value === "" && pw.stapmTimeSec != null) $("stapmTimeSec").placeholder = pw.stapmTimeSec;
-      if ($("slowTimeSec").value === "" && pw.slowTimeSec != null) $("slowTimeSec").placeholder = pw.slowTimeSec;
-      if ($("tctl").value === "") $("tctl").placeholder = num1(pw.tctlCelsius);
+      // 各字段默认填入回读值（改过的才下发）
+      fillPlBaseline("stapmW", pw.stapmW);
+      fillPlBaseline("fastW", pw.fastW);
+      fillPlBaseline("slowW", pw.slowW);
+      fillPlBaseline("stapmTimeSec", pw.stapmTimeSec);
+      fillPlBaseline("slowTimeSec", pw.slowTimeSec);
+      fillPlBaseline("tctl", pw.tctlCelsius);
     } else {
       $("powerNow").textContent = "当前值：" + (cur.powerNote || "不可读");
+    }
+    // ---- 每核负压：核心数（探针优先，缺失时按逻辑线程数/2 估算）+ 回读值 ----
+    var coresN = (typeof p.cores === "number" && p.cores > 0) ? p.cores : guessCoreCount();
+    buildCoGrid(coresN);
+    var rb = cur.coPerCore;
+    fillCoGrid(rb);
+    var noteEl = $("coReadNote");
+    if (noteEl) {
+      if (rb && rb.length) {
+        noteEl.textContent = "回读：" + rb.map(function (v, i) { return "C" + i + " " + v; }).join(" · ") +
+          "（CO 步数；只有改动过的核心才会写入）";
+        // 全核 margin 也默认显示回读值（取 C0），并让滑块跟着走
+        var ca = String(rb[0]);
+        coAllBaseline = ca;
+        $("coAll").placeholder = ca;
+        if ($("coAll").value.trim() === "") { $("coAll").value = ca; syncSlider($("coAll")); }
+      } else {
+        noteEl.textContent = cur.coReadbackNote || "该平台不支持 CO 回读，可手动填写每核数值";
+      }
     }
     $("apply").disabled = !p.initialized;
     if (!p.initialized) log("原因: " + (p.initReason || "未初始化"));
   }
 
-  // ---- 宿主伴随服务桥（OpenRevo 0.9.x+ 的 Sidecar Supervisor）----
-  // manifest 里已声明 service；宿主顶栏会自动出现「服务」胶囊与启动/停止按钮。
-  // 这里再补一层：页面打开时如果代理没起，主动请求宿主拉起（旧版本无响应，自动回落手动方案）。
-  function hostPost(action, payload) {
-    try {
-      window.parent.postMessage(payload ? { action: action, payload: payload } : { action: action }, "*");
-      return true;
-    } catch (e) { return false; }
-  }
-
-  var hostServiceSeen = false;
+  // ============================================================
+  //  OpenRevo 0.9.4+ 插件桥（宿主注入 window.OpenRevo）
+  //   - invoke: 直接调用宿主命令（不再受 postMessage 白名单限制）
+  //   - listen: 订阅宿主事件（电源模式 / 硬件状态 / GPU 偏移）
+  //  本插件不再兼容 0.9.3 及更早版本
+  // ============================================================
+  var OR = window.OpenRevo || null;
+  var PLUGIN_ID = window.__OPENREVO_PLUGIN_ID__ || "openrevo-plugin-power";
   var hostStartAttempted = false;
 
-  window.addEventListener("message", function (e) {
-    var d = e && e.data;
-    if (!d || d.type !== "OPENREVO_PLUGIN_SERVICE_STATUS") return;
-    hostServiceSeen = true;
-    // 0.9.x 宿主用 { type, payload }；老协议用 { type, status }
-    var st = d.payload || d.status || {};
-    var s = st.status || "unknown";
-    log("宿主服务状态: " + s + (st.message ? " · " + st.message : "") + (st.code ? " [" + st.code + "]" : ""));
-    if (s === "running") load().catch(function () { });
-    if (s === "error" && st.message) show("宿主启动服务失败", st.message + (st.detail ? "\n\n" + st.detail : ""));
+  function orInvoke(cmd, args) {
+    if (!OR || typeof OR.invoke !== "function") {
+      return Promise.reject(new Error("需要 OpenRevo 0.9.4+（未检测到 window.OpenRevo 插件桥）"));
+    }
+    return OR.invoke(cmd, args || {});
+  }
+  function orListen(ev, fn) {
+    if (!OR || typeof OR.listen !== "function") return function () { };
+    try { return OR.listen(ev, fn); } catch (e) { return function () { }; }
+  }
+
+  // ---- 宿主状态跟随：电源模式 + GPU 偏移，避免与 OR 本体互相覆盖 ----
+  var hostMode = null;
+  var HOST_MODE_NAMES = { 1: "办公", 2: "均衡", 3: "狂暴", 4: "自定义" };
+  var PL_INPUT_IDS = ["stapmW", "slowW", "slowTimeSec", "fastW", "stapmTimeSec"];
+
+  function setPlLocked(locked) {
+    for (var j = 0; j < PL_INPUT_IDS.length; j++) {
+      var el = $(PL_INPUT_IDS[j]); if (el) el.disabled = locked;
+      var r = document.querySelector('input[type=range][data-for="' + PL_INPUT_IDS[j] + '"]'); if (r) r.disabled = locked;
+    }
+    var ap = $("apply"); if (ap) ap.disabled = false; // 仍允许写 FMax/温度墙
+  }
+
+  function applyHostMode(pm) {
+    if (pm === null || pm === undefined) return;
+    var changed = (pm !== hostMode);
+    hostMode = pm;
+    var name = HOST_MODE_NAMES[pm] || ("未知(" + pm + ")");
+    var locked = (pm === 4);
+    var hm = $("hostMode");
+    if (hm) {
+      hm.textContent = "宿主模式：" + name +
+        (locked ? "　·　PL 由 OR「自定义」调优管理，本插件已锁定 PL 相关项" : "");
+    }
+    if (changed) {
+      setPlLocked(locked);
+      log(locked
+        ? "宿主已切到「自定义」模式：PL1/PL2/Slow/时间窗 由 OR 本体写入，插件已锁定这些项以免互相覆盖。"
+        : "宿主模式：" + name + "，PL 相关项已解锁。");
+      load().catch(function () { });
+    }
+  }
+
+  function applyHostState(st) {
+    if (!st) return;
+    if (st.power_mode !== undefined) applyHostMode(st.power_mode);
+  }
+
+  function applyGpuOffsets(core, mem) {
+    var btn = $("gpuOcBtn");
+    if (!btn) return;
+    if (core === 100 && mem === 500) btn.textContent = "OC ✓";
+    else if (core || mem) btn.textContent = "OC " + (core || 0) + "/" + (mem || 0);
+    else btn.textContent = "GPU OC";
+  }
+
+  // 订阅宿主事件（0.9.4+ 的真·双向广播）
+  orListen("hardware-state-updated", function (ev) { applyHostState(ev && ev.payload); });
+  orListen("physical-mode-switched", function (ev) {
+    var m = ev && ev.payload;
+    if (typeof m === "number") applyHostMode(m);
   });
+  orListen("gpu-clock-offsets-changed", function (ev) {
+    var p = (ev && ev.payload) || {};
+    applyGpuOffsets(p.core_offset_mhz, p.mem_offset_mhz);
+  });
+
+  // 首帧主动拉一次（事件是异步的）
+  orInvoke("get_hardware_status").then(function (st) { applyHostState(st); }).catch(function () { });
 
   // 等待宿主把服务拉起来（最多 ~12 秒），期间不弹错误
   function waitForAgent(maxTries) {
@@ -271,25 +481,25 @@
       conn(false, "代理未运行");
       log("连接失败: " + (e && e.message || e));
 
-      // 第一次失败：请求宿主拉起伴随服务（0.9.x+ 生效）
+      // 第一次失败：直接通过插件桥让宿主拉起伴随服务
       if (!hostStartAttempted) {
         hostStartAttempted = true;
-        hostPost("GET_PLUGIN_SERVICE_STATUS");
-        hostPost("START_PLUGIN_SERVICE");
-        log("已请求宿主启动伴随服务，等待代理就绪…");
+        log("请求宿主启动伴随服务…");
         conn(false, "等待宿主启动服务…");
-        return waitForAgent(14).then(function (ok) {
-          if (ok) return load().catch(function () { });
-          show("本地代理未运行",
-            "两种启动方式：\n\n" +
-            "① OpenRevo v0.9.x+：点标签页右上角的「服务」胶囊（▷ 启动服务），宿主会以管理员权限自动拉起代理；\n" +
-            "② 旧版本（如 0.8.x）：双击插件目录里的「启动代理.bat」，UAC 点【是】。\n\n" +
-            "插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
-        });
+        return orInvoke("start_plugin_service", { pluginId: PLUGIN_ID })
+          .catch(function (err) { log("宿主启动服务失败: " + (err && err.message || err)); })
+          .then(function () { return waitForAgent(14); })
+          .then(function (ok) {
+            if (ok) return load().catch(function () { });
+            show("本地代理未运行",
+              "宿主未能拉起伴随服务。\n\n" +
+              "可点标签页右上角「服务」胶囊的【启动】，或确认插件目录内存在 agent/bin/ux-agent.exe：\n" +
+              "%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
+          });
       }
 
       show("本地代理未运行",
-        "点标签页右上角的「服务」胶囊启动服务；旧版本请双击插件目录里的「启动代理.bat」。\n\n" +
+        "点标签页右上角的「服务」胶囊启动服务。\n\n" +
         "插件目录：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
       throw e;
     });
@@ -345,31 +555,53 @@
       if (iv !== "") { body[intelFields[ii][1]] = parseInt(iv, 10); any = true; }
     }
     var coAll = $("coAll").value.trim();
-    if (coAll !== "") { body.coAll = parseInt(coAll, 10); any = true; }
-    var per = $("coPerCore").value.trim();
-    if (per !== "") {
-      var map = parsePerCore(per);
-      if (!map) { show("格式错误", "每核格式应为：0=-20,1=-20,2=-15"); return; }
-      body.coPerCore = map; any = true;
+    if (coAll !== "" && (coAllBaseline === undefined || String(coAllBaseline) !== coAll)) {
+      body.coAll = parseInt(coAll, 10); any = true;
+    }
+
+    // 每核负压：只提交「改过」的核心（与回读基线不同的才算改过）
+    var perMap = {}, perDirty = 0;
+    var coInputs = document.querySelectorAll("#coPerCoreGrid .co-input");
+    for (var ci = 0; ci < coInputs.length; ci++) {
+      var cel = coInputs[ci];
+      var cv = cel.value.trim();
+      if (cv === "") continue;
+      var coreId = cel.dataset.core;
+      var baseV = coBaseline[coreId];
+      if (body.coAll !== undefined && cel.dataset.fromAll === "1") continue;   // 全核一次写，跳过联动填充的每核
+      if (baseV !== undefined && String(baseV) === cv) continue;
+      var nv = parseInt(cv, 10);
+      if (isNaN(nv)) { show("数值无效", "Core " + coreId + " 的负压不是整数。"); return; }
+      perMap[coreId] = nv; perDirty++;
+    }
+    if (perDirty > 0) {
+      body.coPerCore = perMap; any = true;
+      log("每核负压：将写入 " + perDirty + " 个核心");
     }
     var fm = $("fmaxIn").value.trim();
-    if (fm !== "") { body.fmaxMhz = parseInt(fm, 10); any = true; }
+    if (fm !== "" && (fmaxBaseline === undefined || String(fmaxBaseline) !== fm)) {
+      body.fmaxMhz = parseInt(fm, 10); any = true;
+    }
     var th = $("thm").value.trim();
     if (th !== "") { body.thmCelsius = parseInt(th, 10); any = true; }
-    var tc = $("tctl").value.trim();
-    if (tc !== "") { body.tctlCelsius = parseInt(tc, 10); any = true; }
-    // 与参考实现一致：只提交"勾选"的项（勾选框 = 是否下发）
-    var pairs = [["cStapm","stapmW","stapmW"],["cSlowPow","slowW","slowW"],
-                 ["cSlowTime","slowTimeSec","slowTimeSec"],["cFastPow","fastW","fastW"],
-                 ["cFastTime","stapmTimeSec","stapmTimeSec"]];
-    for (var i = 0; i < pairs.length; i++) {
-      var cb = $(pairs[i][0]), inp = $(pairs[i][1]);
-      if (!cb || !cb.checked) continue;
-      var v = inp.value.trim();
-      if (v === "") { show("缺少数值", "已勾选「" + pairs[i][0] + "」但没填数值。"); return; }
-      body[pairs[i][2]] = parseInt(v, 10); any = true;
+
+    // 功耗墙 / 温度目标：不再需要勾选；只有「与回读值不同」的项才下发
+    var plFields = [["stapmW", "stapmW"], ["slowW", "slowW"], ["slowTimeSec", "slowTimeSec"],
+                    ["fastW", "fastW"], ["stapmTimeSec", "stapmTimeSec"], ["tctl", "tctlCelsius"]];
+    for (var pi = 0; pi < plFields.length; pi++) {
+      var pid = plFields[pi][0], pkey = plFields[pi][1];
+      if (hostMode === 4 && PL_INPUT_IDS.indexOf(pid) !== -1) {
+        log("跳过 " + pid + "：宿主「自定义」模式正在管理 PL。");
+        continue;
+      }
+      var pv = $(pid).value.trim();
+      if (pv === "") continue;
+      var pb = plBaseline[pid];
+      if (pb !== undefined && String(pb) === pv) continue;   // 与回读一致 = 没改动
+      body[pkey] = parseInt(pv, 10); any = true;
+      log("将写入 " + pid + " = " + pv + (pb !== undefined ? "（回读 " + pb + "）" : ""));
     }
-    if (!any) { show("没有要应用的改动", "请先填写至少一项。"); return; }
+    if (!any) { show("没有要应用的改动", "所有输入都与回读值一致；改过任意一项后再点应用。"); return; }
 
     $("apply").disabled = true; log("apply: " + JSON.stringify(body));
     api("/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -379,7 +611,7 @@
           return x.item + " → " + x.status + (x.readback !== undefined && x.readback !== null ? ("（回读 " + x.readback + (x.match === false ? "，不一致" : "") + "）") : "") + (x.note ? ("  " + x.note) : "");
         }).join("\n");
         if (r.after) {
-          text += "\n\n写后 PM 表回读：PL1 " + num1(r.after.stapmW) + "W / PL2 " + num1(r.after.fastW) + "W · Slow " + num1(r.after.slowW) + "W · 结温 " + num1(r.after.tctlCelsius) + "℃";
+          text += "\n\n写后 PM 表回读：STAPM " + num1(r.after.stapmW) + "W / 快速功率 " + num1(r.after.fastW) + "W / 慢速功率 " + num1(r.after.slowW) + "W · 结温 " + num1(r.after.tctlCelsius) + "℃";
         } else if (r.afterNote) {
           text += "\n\n" + r.afterNote;
         }
@@ -391,21 +623,26 @@
   };
 
   $("reload").onclick = function () { load().catch(function () { }); };
+
+  // 全核滑块 / 输入框 ↔ 每核输入框联动（拖动或输入都同步）
+  $("coAll").addEventListener("input", function () { applyCoAllToGrid(this.value.trim()); });
   $("hostStart").onclick = function () {
     log("请求宿主启动伴随服务…");
-    hostPost("START_PLUGIN_SERVICE");
     conn(false, "等待宿主启动服务…");
-    waitForAgent(14).then(function (ok) {
-      if (ok) load().catch(function () { });
-      else show("宿主未启动服务",
-        "当前 OpenRevo 版本可能不支持伴随服务（需 v0.9.x+）。\n\n" +
-        "请改用手动方式：双击插件目录里的「启动代理.bat」，UAC 点【是】。");
-    });
+    orInvoke("start_plugin_service", { pluginId: PLUGIN_ID })
+      .catch(function (err) { log("宿主启动服务失败: " + (err && err.message || err)); })
+      .then(function () { return waitForAgent(14); })
+      .then(function (ok) {
+        if (ok) load().catch(function () { });
+        else show("宿主未启动服务",
+          "请确认插件目录内存在 agent/bin/ux-agent.exe，或查看宿主日志里的服务启动错误。");
+      });
   };
   $("hostStop").onclick = function () {
-    hostPost("STOP_PLUGIN_SERVICE");
     log("请求宿主停止伴随服务…");
-    setTimeout(function () { conn(false, "代理已停止"); }, 800);
+    orInvoke("stop_plugin_service", { pluginId: PLUGIN_ID })
+      .catch(function (err) { log("停止失败: " + (err && err.message || err)); })
+      .then(function () { setTimeout(function () { conn(false, "代理已停止"); }, 800); });
   };
   $("copy").onclick = function () {
     var txt = $("cmd").textContent;
@@ -413,10 +650,8 @@
     else show("请手动复制", txt);
   };
   $("openDir").onclick = function () {
-    var b = null;
-    try { b = (window.parent && window.parent.__TAURI_INTERNALS__) || window.__TAURI_INTERNALS__ || null; } catch (e) { b = null; }
-    if (b && typeof b.invoke === "function") b.invoke("open_plugins_dir", {}).catch(function (e) { show("无法打开", String(e && e.message || e)); });
-    else show("提示", "请手动打开：%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\");
+    orInvoke("open_plugins_dir", {})
+      .catch(function (e) { show("请手动打开", "%APPDATA%\\OpenRevo\\plugins\\openrevo-plugin-ux\\\n\n" + String(e && e.message || e)); });
   };
 
   // ---- 所有 number 输入自动配一个滑块（range <-> number 双向同步） ----
